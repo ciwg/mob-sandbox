@@ -15,7 +15,7 @@ topZ = middleZ + middleDia/2 + topDia/4;
 hatBrimDia = topDia * 1.2;
 hatBrimHeight = hatBrimDia * 0.1;
 // hat height same as hat brim diameter
-hatHeight = hatBrimDia;
+hatHeight = hatBrimDia * 0.6;
 // hat top diameter 80% of hat brim diameter
 hatTopDia = hatBrimDia * 0.6;
 // hat Z is on top of top sphere
