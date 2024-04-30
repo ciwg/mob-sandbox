@@ -6,14 +6,10 @@ topDia = snowmanHeight - middleDia - bottomDia;
 bottomZ = bottomDia/2;
 // middle sphere Z is on top of bottom sphere
 // plus 1/4 of its diameter
-middleZ = bottomZ + bottomDia/2;
-// middleZ = bottomDia + middleDia/4;
+middleZ = bottomZ + bottomDia/2 + middleDia/4;
 // top sphere Z is on top of middle sphere
 // plus 1/4 of its diameter
-
-
-
-topZ = bottomDia + middleDia + topDia/4;
+topZ = middleZ + middleDia/2 + topDia/4;
 
 // bottom sphere
 translate([0,0,bottomZ]) {
