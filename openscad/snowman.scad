@@ -1,5 +1,5 @@
 snowmanHeight = 100;
-bottomDia = snowmanHeight/2.5;
+bottomDia = snowmanHeight/2.3;
 middleDia = snowmanHeight/3;
 topDia = snowmanHeight - middleDia - bottomDia;
 // bottom sphere Z is half of its diameter
@@ -10,6 +10,15 @@ middleZ = bottomZ + bottomDia/2 + middleDia/4;
 // top sphere Z is on top of middle sphere
 // plus 1/4 of its diameter
 topZ = middleZ + middleDia/2 + topDia/4;
+
+// hat brim diameter 20% larger than top sphere
+hatBrimDia = topDia * 1.2;
+// hat height same as hat brim diameter
+hatHeight = hatBrimDia;
+// hat top diameter 80% of hat brim diameter
+hatTopDia = hatBrimDia * 0.8;
+// hat Z is on top of top sphere
+hatZ = topZ + topDia/2;
 
 // bottom sphere
 translate([0,0,bottomZ]) {
