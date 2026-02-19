@@ -1,13 +1,59 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -uo pipefail
 
 # Keep setup minimal and fast.
 #
 # This hook runs after the Codespace/devcontainer is created. Add lightweight,
 # deterministic setup here (e.g. language dependency downloads) so everyone
 # starts from the same baseline environment.
+#
+# This script is intentionally best-effort: failures should not break Codespace
+# creation. Always return success at the end.
 
-echo "[postCreate] Repo: $(basename "$(pwd)")"
+log() {
+  echo "[postCreate] $*"
+}
+
+on_exit() {
+  # The devcontainer CLI treats postCreateCommand as blocking; a non-zero exit
+  # breaks Codespace creation. Force success, but emit a hint when we exit early.
+  local rc=$?
+  if [[ $rc -ne 0 ]]; then
+    log "postCreateCommand exited early (rc=${rc}); continuing."
+  fi
+  exit 0
+}
+
+trap on_exit EXIT
+
+have_cmd() {
+  command -v "$1" >/dev/null 2>&1
+}
+
+ensure_dir() {
+  local dir="$1"
+  local why="${2:-}"
+
+  if [[ -d "${dir}" ]]; then
+    return 0
+  fi
+
+  mkdir -p "${dir}"
+  local rc=$?
+  if [[ $rc -ne 0 ]]; then
+    log "mkdir -p ${dir} failed${why:+ (${why})} (rc=${rc}); skipping."
+    return 1
+  fi
+
+  return 0
+}
+
+log "Repo: $(basename "$(pwd)")"
+
+if [[ -z "${HOME:-}" ]]; then
+  log "HOME is unset; skipping user-level installs."
+  exit 0
+fi
 
 # Install OS packages that are useful in this sandbox.
 #
@@ -15,14 +61,18 @@ echo "[postCreate] Repo: $(basename "$(pwd)")"
 # experimenting. If this grows, consider moving OS package installs into a
 # `.devcontainer/Dockerfile` so Codespaces prebuilds can cache them.
 install_os_packages() {
-  if command -v nvim >/dev/null 2>&1; then
-    echo "[postCreate] neovim already installed."
+  if have_cmd nvim; then
+    log "neovim already installed."
     return 0
   fi
 
+  if ! have_cmd sudo; then
+    log "sudo not found; skipping OS package installs."
+    return 0
+  fi
 
-  if ! command -v apt-get >/dev/null 2>&1; then
-    echo "[postCreate] apt-get not found; skipping OS package installs."
+  if ! have_cmd apt-get; then
+    log "apt-get not found; skipping OS package installs."
     return 0
   fi
 
@@ -35,7 +85,7 @@ install_os_packages() {
     if [[ ! -d "${sources_dir}" ]]; then
       return 0
     fi
-    if ! command -v grep >/dev/null 2>&1; then
+    if ! have_cmd grep; then
       return 0
     fi
 
@@ -45,16 +95,15 @@ install_os_packages() {
       return 0
     fi
 
-    echo "[postCreate] Disabling apt sources containing '${needle}'..."
+    log "Disabling apt sources containing '${needle}'..."
     while IFS= read -r match; do
       [[ -z "${match}" ]] && continue
       [[ "${match}" == *.disabled ]] && continue
-      sudo mv "${match}" "${match}.disabled"
+      sudo mv "${match}" "${match}.disabled" || true
     done <<<"${matches}"
   }
 
-  echo "[postCreate] Installing neovim via apt-get..."
-  set +e
+  log "Installing neovim via apt-get..."
   sudo DEBIAN_FRONTEND=noninteractive apt-get update
   local rc=$?
   if [[ $rc -ne 0 ]]; then
@@ -68,14 +117,13 @@ install_os_packages() {
     sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends neovim
     rc=$?
   fi
-  set -e
 
   if [[ $rc -ne 0 ]]; then
-    echo "[postCreate] neovim install failed (rc=${rc}); continuing."
+    log "neovim install failed (rc=${rc}); continuing."
     return 0
   fi
 
-  echo "[postCreate] neovim installed."
+  log "neovim installed."
 }
 
 install_os_packages
@@ -88,37 +136,37 @@ install_os_packages
 install_mob_tools() {
   local local_bin="${HOME}/.local/bin"
 
-  mkdir -p "${local_bin}"
+  if ! ensure_dir "${local_bin}" "for Go-installed tools"; then
+    return 0
+  fi
   export PATH="${local_bin}:${PATH}"
 
   if command -v mob-consensus >/dev/null 2>&1; then
-    echo "[postCreate] mob-consensus already installed."
+    log "mob-consensus already installed."
     return 0
   fi
 
-  if ! command -v go >/dev/null 2>&1; then
-    echo "[postCreate] go not found; skipping mob-consensus install."
+  if ! have_cmd go; then
+    log "go not found; skipping mob-consensus install."
     return 0
   fi
 
   # Try a couple common Go install paths. We keep this tolerant because the
   # repo layout may change and because private repo auth can fail on first run.
-  echo "[postCreate] Installing mob-consensus..."
-  set +e
+  log "Installing mob-consensus..."
   GOBIN="${local_bin}" go install github.com/stevegt/mob-consensus@latest
   local rc=$?
   if [[ $rc -ne 0 ]]; then
     GOBIN="${local_bin}" go install github.com/stevegt/mob-consensus/cmd/mob-consensus@latest
     rc=$?
   fi
-  set -e
 
   if [[ $rc -ne 0 ]]; then
-    echo "[postCreate] mob-consensus install failed (rc=${rc}); continuing."
+    log "mob-consensus install failed (rc=${rc}); continuing."
     return 0
   fi
 
-  echo "[postCreate] mob-consensus installed to ${local_bin}."
+  log "mob-consensus installed to ${local_bin}."
 }
 
 install_mob_tools
@@ -129,32 +177,43 @@ install_mob_tools
 # each Codespace user can manage/upgrade it independently.
 install_codex_cli() {
   local local_bin="${HOME}/.local/bin"
+  local npm_cache="${HOME}/.cache/npm"
+  local npm_work="${HOME}/.npm"
 
-  mkdir -p "${local_bin}"
+  if ! ensure_dir "${local_bin}" "for npm-installed tools"; then
+    return 0
+  fi
   export PATH="${local_bin}:${PATH}"
 
   if command -v codex >/dev/null 2>&1; then
-    echo "[postCreate] codex already installed."
+    log "codex already installed."
     return 0
   fi
 
-  if ! command -v npm >/dev/null 2>&1; then
-    echo "[postCreate] npm not found; skipping Codex CLI install."
+  if ! have_cmd npm; then
+    log "npm not found; skipping Codex CLI install."
     return 0
   fi
 
-  echo "[postCreate] Installing Codex CLI (@openai/codex)..."
-  set +e
-  npm_config_prefix="${HOME}/.local" npm install -g @openai/codex
+  if ! ensure_dir "${npm_cache}" "for npm cache"; then
+    return 0
+  fi
+  if ! ensure_dir "${npm_work}" "for npm work dir"; then
+    return 0
+  fi
+
+  log "Installing Codex CLI (@openai/codex)..."
+  npm_config_prefix="${HOME}/.local" \
+    npm_config_cache="${npm_cache}" \
+    npm install -g @openai/codex --no-fund --no-audit
   local rc=$?
-  set -e
 
   if [[ $rc -ne 0 ]]; then
-    echo "[postCreate] Codex CLI install failed (rc=${rc}); continuing."
+    log "Codex CLI install failed (rc=${rc}); continuing."
     return 0
   fi
 
-  echo "[postCreate] Codex CLI installed to ${local_bin}."
+  log "Codex CLI installed to ${local_bin}."
 }
 
 install_codex_cli
@@ -179,32 +238,41 @@ install_neovim_copilot_plugin() {
     # deleting non-git directories because users may manage plugins via dotfiles.
     if [[ -d "${plugin_dir}/.git" ]]; then
       local backup_dir="${plugin_dir}.bak.$(date +%Y%m%d%H%M%S)"
-      echo "[postCreate] copilot.vim install looks broken; moving to ${backup_dir}..."
-      mv "${plugin_dir}" "${backup_dir}"
+      log "copilot.vim install looks broken; moving to ${backup_dir}..."
+      mv "${plugin_dir}" "${backup_dir}" || return 0
     else
-      echo "[postCreate] ${plugin_dir} exists but is not a git repo; skipping copilot.vim install."
+      log "${plugin_dir} exists but is not a git repo; skipping copilot.vim install."
       return 0
     fi
   fi
 
-  if ! command -v git >/dev/null 2>&1; then
-    echo "[postCreate] git not found; skipping copilot.vim install."
+  if ! have_cmd git; then
+    log "git not found; skipping copilot.vim install."
     return 0
   fi
 
-  echo "[postCreate] Installing copilot.vim..."
-  mkdir -p "$(dirname "${plugin_dir}")"
+  log "Installing copilot.vim..."
+  if ! ensure_dir "$(dirname "${plugin_dir}")" "for Neovim config"; then
+    return 0
+  fi
 
   # Prefer a shallow git clone so updates are easy, but fall back to downloading
   # an archive if `git clone` fails for any reason.
-  set +e
   git clone --depth 1 "${plugin_repo}" "${plugin_dir}"
   local rc=$?
   if [[ $rc -ne 0 ]]; then
-    rm -rf "${plugin_dir}"
-    if command -v curl >/dev/null 2>&1 && command -v tar >/dev/null 2>&1; then
-      local tmp_dir
-      tmp_dir="$(mktemp -d)"
+    rm -rf "${plugin_dir}" || true
+    if have_cmd curl && have_cmd tar && have_cmd mktemp; then
+      local tmp_dir=""
+      tmp_dir="$(mktemp -d 2>/dev/null)"
+      rc=$?
+      if [[ $rc -ne 0 || -z "${tmp_dir}" ]]; then
+        rc=1
+        tmp_dir=""
+      fi
+      if [[ -z "${tmp_dir}" ]]; then
+        rc=1
+      else
       curl -fsSL "${plugin_repo}/archive/HEAD.tar.gz" | tar -xz -C "${tmp_dir}"
       rc=$?
       if [[ $rc -eq 0 ]]; then
@@ -223,23 +291,26 @@ install_neovim_copilot_plugin() {
           rc=1
         fi
       fi
-      rm -rf "${tmp_dir}"
+      rm -rf "${tmp_dir}" || true
+      fi
     fi
   fi
-  set -e
 
   if [[ $rc -ne 0 ]]; then
-    echo "[postCreate] copilot.vim install failed (rc=${rc}); continuing."
+    log "copilot.vim install failed (rc=${rc}); continuing."
     return 0
   fi
 
-  echo "[postCreate] copilot.vim installed to ${plugin_dir}."
+  log "copilot.vim installed to ${plugin_dir}."
 }
 
 install_neovim_copilot_plugin
 
 # If this sandbox ever grows a Go module, prefetch deps to speed up first builds.
 if [[ -f go.mod ]] && command -v go >/dev/null 2>&1; then
-  echo "[postCreate] go.mod detected; downloading modules..."
-  go mod download
+  log "go.mod detected; downloading modules..."
+  go mod download || true
 fi
+
+log "Done."
+exit 0
