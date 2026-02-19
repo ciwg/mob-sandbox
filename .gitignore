@@ -4,6 +4,14 @@
 # Editor backup files
 *~
 
+# Local Grokker state files
+.grok
+.grok.lock
+
+# Crash dumps and editor state
+core.*
+nv.shada
+
 # Binaries for programs and plugins
 *.exe
 *.exe~

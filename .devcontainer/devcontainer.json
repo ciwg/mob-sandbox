@@ -1,0 +1,11 @@
+{
+  // Dev container config for GitHub Codespaces / VS Code Dev Containers.
+  //
+  // This repo is intentionally a sandbox, so we keep the container setup
+  // lightweight and general-purpose. Extend `postCreateCommand.sh` as new
+  // exercises/tools get added.
+  "name": "mob-sandbox",
+  "image": "mcr.microsoft.com/devcontainers/universal:2",
+  "postCreateCommand": ".devcontainer/postCreateCommand.sh"
+}
+
