@@ -10,7 +10,8 @@ This repo includes a dev container config in `.devcontainer/` for GitHub
 Codespaces / VS Code Dev Containers.
 
 - Recommended secret: `OPENAI_API_KEY` (set as a per-user Codespaces secret).
-- Post-create installs: `mob-consensus` (best-effort, via `go install`).
+- Post-create installs: `mob-consensus`, `codex`, `neovim`, `copilot.vim` (all best-effort).
+- Per-user dotfiles: use GitHub Codespaces “Dotfiles” settings to bring your own `~/.config/nvim/` (or `~/.vimrc`).
 
 Testing footnotes [^foo] [^bar] [^1]. 
 
