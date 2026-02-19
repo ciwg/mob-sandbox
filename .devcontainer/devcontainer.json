@@ -7,6 +7,10 @@
   "name": "mob-sandbox",
   "image": "mcr.microsoft.com/devcontainers/universal:2",
   "postCreateCommand": ".devcontainer/postCreateCommand.sh",
+  "remoteEnv": {
+    // Ensure tools installed into ~/.local/bin are available in terminals.
+    "PATH": "${containerEnv:PATH}:${containerEnv:HOME}/.local/bin"
+  },
   "secrets": {
     "OPENAI_API_KEY": {
       "description": "Personal OpenAI API key used by local experiments and tooling.",
