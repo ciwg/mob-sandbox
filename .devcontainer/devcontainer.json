@@ -6,6 +6,11 @@
   // exercises/tools get added.
   "name": "mob-sandbox",
   "image": "mcr.microsoft.com/devcontainers/universal:2",
-  "postCreateCommand": ".devcontainer/postCreateCommand.sh"
+  "postCreateCommand": ".devcontainer/postCreateCommand.sh",
+  "secrets": {
+    "OPENAI_API_KEY": {
+      "description": "Personal OpenAI API key used by local experiments and tooling.",
+      "documentationUrl": "https://platform.openai.com/api-keys"
+    }
+  }
 }
-
