@@ -8,15 +8,21 @@
 # - gh CLI installed: https://cli.github.com/
 # - Authenticated as a user who can:
 #   - read the enterprise's org list (typically enterprise owner)
-#   - list codespaces billed to each org (typically org admin/owner)
+#   - list codespaces for each org (typically org admin/owner)
 #
-# Output (TSV to stdout):
+# Output:
+# - Default (interactive): aligned columns for humans (spaces).
+# - Non-interactive (piped): TSV for machines.
+# - Override with --table / --tsv.
+#
+# Columns:
 #   org  codespace  owner  repo  state  machine  createdAt  lastUsedAt
 #
 # Examples:
 #   ./gh-codespace-list-all my-enterprise-slug
 #   ENTERPRISE=my-enterprise-slug ./gh-codespace-list-all
 #   ./gh-codespace-list-all --org my-org
+#   ./gh-codespace-list-all --tsv my-enterprise-slug > codespaces.tsv
 #
 # Notes:
 # - If you are not an org admin for a given org, listing that org's codespaces may
@@ -34,11 +40,14 @@ Usage:
 
 Options:
   --hostname HOST   GitHub hostname (default: $GH_HOST or github.com)
-  --org ORG         List codespaces billed to a single org only
+  --org ORG         List codespaces for a single org only
+  --table           Aligned columns (default when stdout is a TTY)
+  --tsv             Tab-separated output (default when stdout is not a TTY)
+  --header          Print a header row
   -h, --help        Show help
 
 Output:
-  TSV rows:
+  Rows (either aligned text or TSV):
     org  codespace  owner  repo  state  machine  createdAt  lastUsedAt
 USAGE
 }
@@ -55,6 +64,12 @@ have_cmd() {
 hostname="${GH_HOST:-github.com}"
 enterprise="${ENTERPRISE:-}"
 single_org=""
+format="tsv"
+header="0"
+
+if [[ -t 1 ]]; then
+  format="table"
+fi
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -67,6 +82,18 @@ while [[ $# -gt 0 ]]; do
       [[ $# -ge 2 ]] || die "--org requires an argument"
       single_org="$2"
       shift 2
+      ;;
+    --table)
+      format="table"
+      shift
+      ;;
+    --tsv)
+      format="tsv"
+      shift
+      ;;
+    --header)
+      header="1"
+      shift
       ;;
     -h|--help)
       usage
@@ -92,8 +119,55 @@ if ! GH_HOST="$hostname" gh auth status --hostname "$hostname" >/dev/null 2>&1; 
   die "not authenticated to '$hostname' (run: gh auth login --hostname '$hostname')"
 fi
 
+# Collect rows to a temp file so we can optionally format as an aligned table.
+rows_file="$(mktemp "${TMPDIR:-/tmp}/gh-codespace-list-all.rows.XXXXXX")"
+err_file="$(mktemp "${TMPDIR:-/tmp}/gh-codespace-list-all.err.XXXXXX")"
+trap 'rm -f "$rows_file" "$err_file" >/dev/null 2>&1 || true' EXIT
+
+if [[ "$header" == "1" ]]; then
+  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+    "org" "codespace" "owner" "repo" "state" "machine" "createdAt" "lastUsedAt" \
+    >"$rows_file"
+fi
+
+format_rows() {
+  local file="$1"
+
+  case "$format" in
+    tsv)
+      cat "$file"
+      ;;
+    table)
+      awk -F '\t' '
+        {
+          rows[NR] = $0
+          for (i = 1; i <= NF; i++) {
+            if (length($i) > w[i]) w[i] = length($i)
+          }
+          if (NF > maxNF) maxNF = NF
+        }
+        END {
+          if (NR == 0) exit 0
+          for (r = 1; r <= NR; r++) {
+            n = split(rows[r], f, "\t")
+            for (i = 1; i <= maxNF; i++) {
+              val = (i <= n ? f[i] : "")
+              printf "%-*s", w[i], val
+              if (i < maxNF) printf "  "
+            }
+            printf "\n"
+          }
+        }' "$file"
+      ;;
+    *)
+      echo "ERROR: unknown format: $format" >&2
+      return 2
+      ;;
+  esac
+}
+
 # Repo full names for codespaces owned by the authenticated user (one per line).
-# Used only to provide a hint when org-billed listings are empty.
+# Used only to provide a hint when org listings are empty.
 self_codespace_repos=$(
   GH_HOST="$hostname" gh codespace list \
     --json repository \
@@ -138,42 +212,39 @@ list_org_codespaces_tsv() {
         (.createdAt // ""),
         (.lastUsedAt // "")
       ] | map(tostring) | join("\t")' \
-      2>/tmp/gh-codespace-list-all.err \
+      2>"$err_file" \
       | awk -v org="$org" 'NF { print org "\t" $0 }'
   ); then
     # Emit the error and continue.
-    if [[ -s /tmp/gh-codespace-list-all.err ]]; then
-      echo "WARN: org '$org': $(head -n 1 /tmp/gh-codespace-list-all.err)" >&2
+    if [[ -s "$err_file" ]]; then
+      echo "WARN: org '$org': $(head -n 1 "$err_file")" >&2
     else
       echo "WARN: org '$org': unable to list codespaces" >&2
     fi
-    rm -f /tmp/gh-codespace-list-all.err >/dev/null 2>&1 || true
     return 0
   fi
-
-  rm -f /tmp/gh-codespace-list-all.err >/dev/null 2>&1 || true
 
   if [[ -n "$out" ]]; then
     printf '%s\n' "$out"
     return 0
   fi
 
-  # No output means there are no codespaces *billed to this org*.
-  # This often surprises enterprise owners, because user-billed codespaces won't appear here.
+  # No output means there are no codespaces visible via org listing for this org.
   if [[ -n "${self_codespace_repos:-}" ]]; then
     self_count=$(
       printf '%s\n' "$self_codespace_repos" | awk -v org="$org" -F/ '$1==org { c++ } END { print c+0 }'
     )
   fi
   if [[ "$self_count" != "0" ]]; then
-    echo "INFO: org '$org': no org-billed codespaces (you have $self_count personal codespaces in $org/* repos)" >&2
+    echo "INFO: org '$org': no codespaces found (you have $self_count personal codespaces in $org/* repos)" >&2
   else
-    echo "INFO: org '$org': no org-billed codespaces" >&2
+    echo "INFO: org '$org': no codespaces found" >&2
   fi
 }
 
 if [[ -n "$single_org" ]]; then
-  list_org_codespaces_tsv "$single_org"
+  list_org_codespaces_tsv "$single_org" >>"$rows_file"
+  format_rows "$rows_file"
   exit 0
 fi
 
@@ -224,5 +295,7 @@ fi
 while IFS= read -r org; do
   [[ -n "$org" ]] || continue
   echo "INFO: listing codespaces for org '$org'..." >&2
-  list_org_codespaces_tsv "$org"
+  list_org_codespaces_tsv "$org" >>"$rows_file"
 done <<<"$orgs"
+
+format_rows "$rows_file"
