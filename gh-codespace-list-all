@@ -1,0 +1,151 @@
+#!/usr/bin/env bash
+#
+# List GitHub Codespaces across an entire enterprise (all orgs).
+#
+# This script is intended for GitHub Enterprise Cloud on github.com.
+#
+# Requirements:
+# - gh CLI installed: https://cli.github.com/
+# - Authenticated as a user who can:
+#   - read the enterprise's org list (typically enterprise owner)
+#   - list codespaces billed to each org (typically org admin/owner)
+#
+# Output (TSV to stdout):
+#   org  codespace  owner  repo  state  machine  createdAt  lastUsedAt
+#
+# Examples:
+#   ./gh-codespace-list-all my-enterprise-slug
+#   ENTERPRISE=my-enterprise-slug ./gh-codespace-list-all
+#   ./gh-codespace-list-all --org my-org
+#
+# Notes:
+# - If you are not an org admin for a given org, listing that org's codespaces may
+#   fail. The script will warn and continue with other orgs.
+# - For GitHub Enterprise Server (GHES), set GH_HOST or pass --hostname, but note
+#   that enterprise APIs and Codespaces availability differ from github.com.
+
+set -euo pipefail
+
+usage() {
+  cat <<'USAGE'
+Usage:
+  gh-codespace-list-all [--hostname HOST] <enterprise-slug>
+  gh-codespace-list-all [--hostname HOST] --org <org>
+
+Options:
+  --hostname HOST   GitHub hostname (default: $GH_HOST or github.com)
+  --org ORG         List codespaces billed to a single org only
+  -h, --help        Show help
+
+Output:
+  TSV rows:
+    org  codespace  owner  repo  state  machine  createdAt  lastUsedAt
+USAGE
+}
+
+die() {
+  echo "ERROR: $*" >&2
+  exit 2
+}
+
+have_cmd() {
+  command -v "$1" >/dev/null 2>&1
+}
+
+hostname="${GH_HOST:-github.com}"
+enterprise="${ENTERPRISE:-}"
+single_org=""
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --hostname)
+      [[ $# -ge 2 ]] || die "--hostname requires an argument"
+      hostname="$2"
+      shift 2
+      ;;
+    --org)
+      [[ $# -ge 2 ]] || die "--org requires an argument"
+      single_org="$2"
+      shift 2
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    -*)
+      die "unknown option: $1"
+      ;;
+    *)
+      if [[ -n "$enterprise" ]]; then
+        die "unexpected argument: $1 (enterprise already set to '$enterprise')"
+      fi
+      enterprise="$1"
+      shift
+      ;;
+  esac
+done
+
+have_cmd gh || die "gh not found in PATH"
+
+# Ensure we have credentials for the target host.
+if ! GH_HOST="$hostname" gh auth status --hostname "$hostname" >/dev/null 2>&1; then
+  die "not authenticated to '$hostname' (run: gh auth login --hostname '$hostname')"
+fi
+
+list_org_codespaces_tsv() {
+  local org="$1"
+
+  # `gh codespace list --org` requires org admin/owner privileges.
+  # We warn-and-continue to avoid failing the whole enterprise scan.
+  if ! GH_HOST="$hostname" gh codespace list --org "$org" \
+    --json name,owner,repository,state,machineName,createdAt,lastUsedAt \
+    --template \
+      '{{range .}}{{.name}}{{"\t"}}{{if .owner}}{{.owner.login}}{{end}}{{"\t"}}{{if .repository}}{{.repository.fullName}}{{end}}{{"\t"}}{{.state}}{{"\t"}}{{.machineName}}{{"\t"}}{{.createdAt}}{{"\t"}}{{.lastUsedAt}}{{"\n"}}{{end}}' \
+    2>/tmp/gh-codespace-list-all.err \
+    | awk -v org="$org" 'NF { print org "\t" $0 }'
+  then
+    # Emit the error and continue.
+    if [[ -s /tmp/gh-codespace-list-all.err ]]; then
+      echo "WARN: org '$org': $(head -n 1 /tmp/gh-codespace-list-all.err)" >&2
+    else
+      echo "WARN: org '$org': unable to list codespaces" >&2
+    fi
+    rm -f /tmp/gh-codespace-list-all.err >/dev/null 2>&1 || true
+    return 0
+  fi
+
+  rm -f /tmp/gh-codespace-list-all.err >/dev/null 2>&1 || true
+}
+
+if [[ -n "$single_org" ]]; then
+  list_org_codespaces_tsv "$single_org"
+  exit 0
+fi
+
+[[ -n "$enterprise" ]] || die "missing enterprise slug (or pass --org)"
+
+orgs=$(
+  GH_HOST="$hostname" gh api graphql --hostname "$hostname" --paginate \
+    -F slug="$enterprise" \
+    -f query='
+      query($slug:String!, $endCursor:String) {
+        enterprise(slug:$slug) {
+          organizations(first:100, after:$endCursor) {
+            nodes { login }
+            pageInfo { hasNextPage endCursor }
+          }
+        }
+      }' \
+    --jq '.data.enterprise.organizations.nodes[].login'
+)
+
+if [[ -z "$orgs" ]]; then
+  die "no orgs found for enterprise '$enterprise' on '$hostname' (or insufficient permissions)"
+fi
+
+while IFS= read -r org; do
+  [[ -n "$org" ]] || continue
+  echo "INFO: listing codespaces for org '$org'..." >&2
+  list_org_codespaces_tsv "$org"
+done <<<"$orgs"
+
