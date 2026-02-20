@@ -1,0 +1,55 @@
+# 002 - Add GUI desktop + noVNC to Codespace
+
+Goal: run a lightweight Linux desktop environment inside the Codespace and access it
+from a browser via noVNC (VNC over WebSockets), primarily for GUI-only tools.
+
+Constraints/assumptions to verify:
+- This repo's Codespace uses a devcontainer image; we likely don't have `systemd`.
+- Services should start as the `codespace` user (or via `postStartCommand`), not as a
+  long-running root daemon.
+- Package installs can be large; prefer minimal packages and clean up apt caches to
+  reduce "No space left on device" risk.
+- Port forwarding in Codespaces provides an authenticated proxy; still treat a shared
+  Codespace as a shared trust boundary.
+
+Design choices to decide up front:
+- Desktop: `xfce4` vs `lxqt` vs `openbox`/`fluxbox` (lighter is better).
+- VNC server: TigerVNC (`Xtigervnc`) vs `x11vnc` (TigerVNC is common for full sessions).
+- noVNC: install from distro packages vs vendored release + `websockify`.
+- Startup: `devcontainer.json` `postStartCommand` vs a user-level background script.
+
+Implementation plan:
+- [ ] 002.1 Confirm base OS + package manager in the devcontainer image (`/etc/os-release`,
+  `apt-get --version`) and whether `sudo` works.
+- [ ] 002.2 Pick a minimal desktop stack (start with a window manager + terminal, then
+  add a fuller DE only if needed).
+- [ ] 002.3 Add install steps to `.devcontainer/postCreateCommand.sh`:
+  - install X components, the chosen DE/WM, fonts, `dbus-x11`, VNC server, and noVNC.
+  - use `--no-install-recommends` where possible.
+  - clean up (`apt-get clean`, remove `/var/lib/apt/lists/*`) to save space.
+- [ ] 002.4 Add a start script (e.g. `.devcontainer/start-desktop.sh`) that:
+  - creates `~/.vnc/`
+  - sets a VNC password (prompt or env var; never log it)
+  - starts the VNC session on a fixed display (e.g. `:1` => `5901`)
+  - starts noVNC (e.g. `6080`) pointing at `localhost:5901`
+- [ ] 002.5 Add a stop script (e.g. `.devcontainer/stop-desktop.sh`) to kill VNC/noVNC
+  cleanly and avoid orphan processes across restarts.
+- [ ] 002.6 Update `.devcontainer/devcontainer.json`:
+  - `forwardPorts`: at least `6080` (optionally `5901` for native VNC clients)
+  - `portsAttributes` to label the port (e.g. "Desktop (noVNC)") and set visibility
+    defaults (keep private).
+- [ ] 002.7 Document usage in `README.md`:
+  - how to start/stop the desktop
+  - how to open the forwarded port
+  - how to set the VNC password securely
+- [ ] 002.8 Security checks:
+  - confirm ports are not set to public by default
+  - confirm what happens when a Codespace is shared (do collaborators get the desktop?)
+  - confirm secrets/passwords are not written to repo files or shell history
+- [ ] 002.9 Basic validation:
+  - open the noVNC URL and verify the desktop appears
+  - verify clipboard + keyboard mappings are usable
+  - run a trivial GUI app (terminal, file manager) to confirm stability
+- [ ] 002.10 Decide whether this should be default-on or opt-in (feature flag / script),
+  based on install size and startup time.
+
