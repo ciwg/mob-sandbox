@@ -92,18 +92,30 @@ if ! GH_HOST="$hostname" gh auth status --hostname "$hostname" >/dev/null 2>&1; 
   die "not authenticated to '$hostname' (run: gh auth login --hostname '$hostname')"
 fi
 
+# Repo full names for codespaces owned by the authenticated user (one per line).
+# Used only to provide a hint when org-billed listings are empty.
+self_codespace_repos=$(
+  GH_HOST="$hostname" gh codespace list \
+    --json repository \
+    --template '{{range .}}{{if .repository}}{{.repository.fullName}}{{"\n"}}{{end}}{{end}}' \
+    2>/dev/null || true
+)
+
 list_org_codespaces_tsv() {
   local org="$1"
+  local out=""
+  local self_count="0"
 
   # `gh codespace list --org` requires org admin/owner privileges.
   # We warn-and-continue to avoid failing the whole enterprise scan.
-  if ! GH_HOST="$hostname" gh codespace list --org "$org" \
-    --json name,owner,repository,state,machineName,createdAt,lastUsedAt \
-    --template \
-      '{{range .}}{{.name}}{{"\t"}}{{if .owner}}{{.owner.login}}{{end}}{{"\t"}}{{if .repository}}{{.repository.fullName}}{{end}}{{"\t"}}{{.state}}{{"\t"}}{{.machineName}}{{"\t"}}{{.createdAt}}{{"\t"}}{{.lastUsedAt}}{{"\n"}}{{end}}' \
-    2>/tmp/gh-codespace-list-all.err \
-    | awk -v org="$org" 'NF { print org "\t" $0 }'
-  then
+  if ! out=$(
+    GH_HOST="$hostname" gh codespace list --org "$org" \
+      --json name,owner,repository,state,machineName,createdAt,lastUsedAt \
+      --template \
+        '{{range .}}{{.name}}{{"\t"}}{{if .owner}}{{.owner.login}}{{end}}{{"\t"}}{{if .repository}}{{.repository.fullName}}{{end}}{{"\t"}}{{.state}}{{"\t"}}{{.machineName}}{{"\t"}}{{.createdAt}}{{"\t"}}{{.lastUsedAt}}{{"\n"}}{{end}}' \
+      2>/tmp/gh-codespace-list-all.err \
+      | awk -v org="$org" 'NF { print org "\t" $0 }'
+  ); then
     # Emit the error and continue.
     if [[ -s /tmp/gh-codespace-list-all.err ]]; then
       echo "WARN: org '$org': $(head -n 1 /tmp/gh-codespace-list-all.err)" >&2
@@ -115,6 +127,24 @@ list_org_codespaces_tsv() {
   fi
 
   rm -f /tmp/gh-codespace-list-all.err >/dev/null 2>&1 || true
+
+  if [[ -n "$out" ]]; then
+    printf '%s\n' "$out"
+    return 0
+  fi
+
+  # No output means there are no codespaces *billed to this org*.
+  # This often surprises enterprise owners, because user-billed codespaces won't appear here.
+  if [[ -n "${self_codespace_repos:-}" ]]; then
+    self_count=$(
+      printf '%s\n' "$self_codespace_repos" | awk -v org="$org" -F/ '$1==org { c++ } END { print c+0 }'
+    )
+  fi
+  if [[ "$self_count" != "0" ]]; then
+    echo "INFO: org '$org': no org-billed codespaces (you have $self_count personal codespaces in $org/* repos)" >&2
+  else
+    echo "INFO: org '$org': no org-billed codespaces" >&2
+  fi
 }
 
 if [[ -n "$single_org" ]]; then
@@ -136,11 +166,34 @@ orgs=$(
           }
         }
       }' \
-    --jq '.data.enterprise.organizations.nodes[].login'
+    --jq '.data.enterprise.organizations.nodes[]?.login'
 )
 
 if [[ -z "$orgs" ]]; then
-  die "no orgs found for enterprise '$enterprise' on '$hostname' (or insufficient permissions)"
+  # Provide a more actionable error than "cannot iterate over: null".
+  if GH_HOST="$hostname" gh api --hostname "$hostname" "orgs/$enterprise" >/dev/null 2>&1; then
+    die "'$enterprise' looks like an org login, not an enterprise slug (try: $0 --org $enterprise)"
+  fi
+
+  enterprise_slug=$(
+    GH_HOST="$hostname" gh api graphql --hostname "$hostname" \
+      -F slug="$enterprise" \
+      -f query='query($slug:String!){ enterprise(slug:$slug){ slug } }' \
+      --jq '.data.enterprise.slug // empty'
+  )
+  if [[ -z "$enterprise_slug" ]]; then
+    enterprise_err=$(
+      GH_HOST="$hostname" gh api graphql --hostname "$hostname" \
+        -F slug="$enterprise" \
+        -f query='query($slug:String!){ enterprise(slug:$slug){ slug } }' \
+        --jq '.errors[0].message // empty'
+    )
+    if [[ -n "$enterprise_err" ]]; then
+      die "cannot access enterprise '$enterprise' on '$hostname': $enterprise_err"
+    fi
+  fi
+
+  die "no orgs found for enterprise '$enterprise' on '$hostname' (slug wrong, no orgs, or insufficient permissions)"
 fi
 
 while IFS= read -r org; do
@@ -148,4 +201,3 @@ while IFS= read -r org; do
   echo "INFO: listing codespaces for org '$org'..." >&2
   list_org_codespaces_tsv "$org"
 done <<<"$orgs"
-
