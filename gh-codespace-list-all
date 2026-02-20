@@ -97,7 +97,13 @@ fi
 self_codespace_repos=$(
   GH_HOST="$hostname" gh codespace list \
     --json repository \
-    --template '{{range .}}{{if .repository}}{{.repository.fullName}}{{"\n"}}{{end}}{{end}}' \
+    --jq '.[] | (
+      .repository
+      | if type == "object" then (.fullName // empty)
+        elif type == "string" then .
+        else empty
+        end
+    )' \
     2>/dev/null || true
 )
 
@@ -111,8 +117,27 @@ list_org_codespaces_tsv() {
   if ! out=$(
     GH_HOST="$hostname" gh codespace list --org "$org" \
       --json name,owner,repository,state,machineName,createdAt,lastUsedAt \
-      --template \
-        '{{range .}}{{.name}}{{"\t"}}{{if .owner}}{{.owner.login}}{{end}}{{"\t"}}{{if .repository}}{{.repository.fullName}}{{end}}{{"\t"}}{{.state}}{{"\t"}}{{.machineName}}{{"\t"}}{{.createdAt}}{{"\t"}}{{.lastUsedAt}}{{"\n"}}{{end}}' \
+      --jq '.[] | [
+        .name,
+        (
+          .owner
+          | if type == "object" then (.login // "")
+            elif type == "string" then .
+            else ""
+            end
+        ),
+        (
+          .repository
+          | if type == "object" then (.fullName // "")
+            elif type == "string" then .
+            else ""
+            end
+        ),
+        (.state // ""),
+        (.machineName // ""),
+        (.createdAt // ""),
+        (.lastUsedAt // "")
+      ] | map(tostring) | join("\t")' \
       2>/tmp/gh-codespace-list-all.err \
       | awk -v org="$org" 'NF { print org "\t" $0 }'
   ); then
