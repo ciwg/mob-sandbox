@@ -312,5 +312,9 @@ if [[ -f go.mod ]] && command -v go >/dev/null 2>&1; then
   go mod download || true
 fi
 
+# scratchpad for POC testing if decomk concepts
+mkdir /var/decomk
+touch /var/decomk/hello.txt
+
 log "Done."
 exit 0
