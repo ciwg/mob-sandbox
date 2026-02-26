@@ -26,6 +26,7 @@ Trial plan:
   note any constraints (internal-only, specific org members, etc.).
 - [ ] 001.2 Create a fresh Codespace from this repo and record baseline info:
   `uname -a`, `whoami`, `id`, `df -h`, `env | rg -i 'CODESPACE|GITHUB'`.
+  - Helper: run `scripts/codespace-baseline.sh` and save output for both users.
 - [ ] 001.3 Find the share mechanism in GitHub UI (and/or `gh`) and document the exact
   steps to grant access to a second GitHub account.
 - [ ] 001.4 As the second GitHub account, connect via SSH (`gh codespace ssh -c ...`)
