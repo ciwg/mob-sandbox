@@ -4,7 +4,10 @@
   // This keeps the default config lightweight for CLI-only work while offering a
   // quick way to trial a browser-accessible desktop (noVNC).
   "name": "mob-sandbox (GUI)",
-  "image": "mcr.microsoft.com/devcontainers/universal:2",
+  // Note: we intentionally avoid the `universal` image here. Adding devcontainer
+  // Features forces a docker build, and `universal` is large enough that builds
+  // can hit Codespaces disk limits and fall back to a recovery container.
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu-24.04",
   "postCreateCommand": ".devcontainer/postCreateCommand.sh",
   "remoteEnv": {
     // Ensure tools installed into ~/.local/bin are available in terminals.

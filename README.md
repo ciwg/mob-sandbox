@@ -19,6 +19,10 @@ This repo also includes an **opt-in** GUI-focused devcontainer config at
 `.devcontainer/gui/devcontainer.json` that enables a lightweight desktop you can
 access from your browser via **noVNC**.
 
+If Codespaces fails to build this configuration and drops you into a small Alpine
+"recovery container", check the Codespace logs for “no space left on device” and
+retry with a larger machine size or after a full rebuild.
+
 How to use it:
 - In GitHub’s UI when creating a new Codespace, choose the GUI devcontainer
   configuration (`.devcontainer/gui/devcontainer.json`).

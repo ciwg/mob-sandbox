@@ -38,6 +38,10 @@ Implementation plan:
     that enables `ghcr.io/devcontainers/features/desktop-lite:1`.
   - [ ] 002.3.2 Create a Codespace using that GUI config and confirm it works:
     open forwarded port `6080` and verify the desktop appears in the browser.
+  - [ ] 002.3.3 If container creation falls back to an Alpine recovery container,
+    pull Codespace logs and check for “no space left on device”. If present:
+    - retry with a larger machine size and/or a smaller base image
+    - run `gh codespace rebuild --full`
 - [ ] 002.4 If the feature approach isn't viable, pick a minimal
   desktop stack (start with a window manager + terminal, then add a
   fuller DE only if needed).
