@@ -13,12 +13,10 @@ Constraints/assumptions to verify:
   Codespace as a shared trust boundary.
 
 Recommended approach:
-- Prefer an separate GUI configuration (separate decomk config) so the
-  default Codespace stays fast and small for CLI-only work.
-  - XXX see ~/lab/decomk
-- First try an existing Dev Container Feature that bundles a
-  lightweight desktop + noVNC (commonly called `desktop-lite`) before
-  hand-rolling X/VNC/noVNC setup.
+- Prefer a separate **opt-in** GUI configuration (separate devcontainer config)
+  so the default Codespace stays fast and small for CLI-only work.
+- First try an existing Dev Container Feature that bundles a lightweight desktop
+  + noVNC (`desktop-lite`) before hand-rolling X/VNC/noVNC setup.
 
 Design choices to decide up front:
 - Desktop: `xfce4` vs `lxqt` vs `openbox`/`fluxbox` (lighter is better).
@@ -30,20 +28,21 @@ Implementation plan:
 - [ ] 002.1 Confirm base OS + package manager in the devcontainer
   image (`/etc/os-release`, `apt-get --version`) and whether `sudo`
   works.
-- [ ] 002.2 Decide whether this should be default-on or opt-in; if
-  opt-in, add a separate decomk config so users can select it when
-  creating a Codespace.
-  - XXX can gh codespace start or web UI accept flags?  or is this a
-    feature thing?
-- [ ] 002.3 Prototype with an existing Dev Container Feature (if
-  available) that provides a lightweight desktop + noVNC; record what
-  port it uses and how to start it.
+- [x] 002.2 Decide whether this should be default-on or opt-in.
+  - Decision: opt-in via a separate `.devcontainer/gui/devcontainer.json`.
+  - Selection UX:
+    - GitHub UI: choose the devcontainer configuration when creating/rebuilding.
+    - `gh`: `gh codespace create --devcontainer-path .devcontainer/gui/devcontainer.json ...`
+- [ ] 002.3 Prototype with the existing `desktop-lite` Dev Container Feature.
+  - [x] 002.3.1 Add a separate devcontainer config at `.devcontainer/gui/devcontainer.json`
+    that enables `ghcr.io/devcontainers/features/desktop-lite:1`.
+  - [ ] 002.3.2 Create a Codespace using that GUI config and confirm it works:
+    open forwarded port `6080` and verify the desktop appears in the browser.
 - [ ] 002.4 If the feature approach isn't viable, pick a minimal
   desktop stack (start with a window manager + terminal, then add a
   fuller DE only if needed).
 - [ ] 002.5 Add install steps to `.devcontainer/postCreateCommand.sh`
   (or a separate GUI-specific install script) that:
-  - XXX use decomk
   - installs X components, the chosen DE/WM, fonts, `dbus-x11`, VNC
     server, and noVNC.
   - uses `--no-install-recommends` where possible.
@@ -51,7 +50,6 @@ Implementation plan:
     space.
 - [ ] 002.6 Add a start script (e.g. `.devcontainer/start-desktop.sh`)
   that:
-  - XXX use decomk
   - creates `~/.vnc/`
   - sets a VNC password (prompt or env var; never log it)
   - starts the VNC session on a fixed display (e.g. `:1` => `5901`)
@@ -60,13 +58,13 @@ Implementation plan:
   to kill VNC/noVNC cleanly and avoid orphan processes across
   restarts.
   - XXX what?  restarting a container restarts all processes, right?
-- [ ] 002.8 Update `.devcontainer/devcontainer.json` (or the GUI
+- [x] 002.8 Update `.devcontainer/devcontainer.json` (or the GUI
   devcontainer config):
   - `forwardPorts`: at least `6080` (optionally `5901` for native VNC
     clients)
   - `portsAttributes` to label the port (e.g. "Desktop (noVNC)") and
     set visibility defaults (keep private).
-- [ ] 002.9 Document usage in `README.md`:
+- [x] 002.9 Document usage in `README.md`:
   - how to start/stop the desktop
   - how to open the forwarded port
   - how to set the VNC password securely

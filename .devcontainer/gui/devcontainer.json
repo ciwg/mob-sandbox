@@ -1,0 +1,36 @@
+{
+  // Optional GUI-focused devcontainer config for GitHub Codespaces / VS Code.
+  //
+  // This keeps the default config lightweight for CLI-only work while offering a
+  // quick way to trial a browser-accessible desktop (noVNC).
+  "name": "mob-sandbox (GUI)",
+  "image": "mcr.microsoft.com/devcontainers/universal:2",
+  "postCreateCommand": ".devcontainer/postCreateCommand.sh",
+  "remoteEnv": {
+    // Ensure tools installed into ~/.local/bin are available in terminals.
+    "PATH": "${containerEnv:PATH}:${containerEnv:HOME}/.local/bin"
+  },
+  "features": {
+    // Provides a lightweight desktop environment plus a web-based VNC client
+    // (noVNC). This should expose a web UI on port 6080.
+    //
+    // Default password is commonly "vscode". If you change it, rebuild the
+    // container for the change to take effect.
+    "ghcr.io/devcontainers/features/desktop-lite:1": {
+      "password": "vscode"
+    }
+  },
+  "forwardPorts": [6080],
+  "portsAttributes": {
+    "6080": {
+      "label": "Desktop (noVNC)",
+      "onAutoForward": "openBrowser"
+    }
+  },
+  "secrets": {
+    "OPENAI_API_KEY": {
+      "description": "Personal OpenAI API key used by local experiments and tooling.",
+      "documentationUrl": "https://platform.openai.com/api-keys"
+    }
+  }
+}

@@ -13,6 +13,25 @@ Codespaces / VS Code Dev Containers.
 - Post-create installs: `mob-consensus`, `codex`, `neovim`, `copilot.vim` (all best-effort).
 - Per-user dotfiles: use GitHub Codespaces “Dotfiles” settings to bring your own `~/.config/nvim/` (or `~/.vimrc`).
 
+### Optional GUI desktop (noVNC)
+
+This repo also includes an **opt-in** GUI-focused devcontainer config at
+`.devcontainer/gui/devcontainer.json` that enables a lightweight desktop you can
+access from your browser via **noVNC**.
+
+How to use it:
+- In GitHub’s UI when creating a new Codespace, choose the GUI devcontainer
+  configuration (`.devcontainer/gui/devcontainer.json`).
+- From the CLI, you can create a Codespace with:
+  - `gh codespace create -R <owner/repo> --devcontainer-path .devcontainer/gui/devcontainer.json`
+- For an existing Codespace, rebuild it and select the GUI configuration when
+  prompted (VS Code / Codespaces command palette: “Rebuild Container”).
+- Once the container is running, open forwarded port `6080` (“Desktop (noVNC)”)
+  and use password `vscode`.
+
+To change the desktop password, edit `.devcontainer/gui/devcontainer.json` and
+rebuild the container.
+
 Testing footnotes [^foo] [^bar] [^1]. 
 
 And more [^foo].
