@@ -36,12 +36,13 @@ Implementation plan:
 - [ ] 002.3 Prototype with the existing `desktop-lite` Dev Container Feature.
   - [x] 002.3.1 Add a separate devcontainer config at `.devcontainer/gui/devcontainer.json`
     that enables `ghcr.io/devcontainers/features/desktop-lite:1`.
-  - [ ] 002.3.2 Create a Codespace using that GUI config and confirm it works:
+  - [x] 002.3.2 Create a Codespace using that GUI config and confirm it works:
     open forwarded port `6080` and verify the desktop appears in the browser.
   - [ ] 002.3.3 If container creation falls back to an Alpine recovery container,
     pull Codespace logs and check for “no space left on device”. If present:
     - retry with a larger machine size and/or a smaller base image
     - run `gh codespace rebuild --full`
+  - [x] 002.3.4 Install a GUI browser (so the desktop can browse the web).
 - [ ] 002.4 If the feature approach isn't viable, pick a minimal
   desktop stack (start with a window manager + terminal, then add a
   fuller DE only if needed).
@@ -80,6 +81,7 @@ Implementation plan:
     history
 - [ ] 002.11 Basic validation:
   - open the noVNC URL and verify the desktop appears
+  - launch a browser inside the desktop and load a page
   - verify clipboard + keyboard mappings are usable
   - run a trivial GUI app (terminal, file manager) to confirm
     stability

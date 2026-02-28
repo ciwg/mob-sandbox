@@ -90,6 +90,14 @@ install_os_packages() {
   if ! have_cmd node || ! have_cmd npm; then
     pkgs+=("nodejs" "npm")
   fi
+  if [[ "${MOB_SANDBOX_GUI:-}" == "1" ]]; then
+    # Ubuntu's Firefox/Chromium packages frequently depend on Snap, which is
+    # awkward in containers. Epiphany (GNOME Web) is a simple apt-installed
+    # GUI browser that works well in noVNC desktops.
+    if ! have_cmd epiphany; then
+      pkgs+=("epiphany-browser")
+    fi
+  fi
 
   if [[ ${#pkgs[@]} -eq 0 ]]; then
     log "OS packages already installed."

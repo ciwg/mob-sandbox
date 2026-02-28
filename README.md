@@ -32,6 +32,8 @@ How to use it:
   prompted (VS Code / Codespaces command palette: “Rebuild Container”).
 - Once the container is running, open forwarded port `6080` (“Desktop (noVNC)”)
   and use password `vscode`.
+- A GUI browser (`epiphany`, a.k.a. GNOME Web) is installed; launch it from the
+  desktop or run `epiphany` in a terminal inside the noVNC session.
 
 To change the desktop password, edit `.devcontainer/gui/devcontainer.json` and
 rebuild the container.

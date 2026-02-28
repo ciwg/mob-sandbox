@@ -8,7 +8,9 @@
   // Features forces a docker build, and `universal` is large enough that builds
   // can hit Codespaces disk limits and fall back to a recovery container.
   "image": "mcr.microsoft.com/devcontainers/base:ubuntu-24.04",
-  "postCreateCommand": ".devcontainer/postCreateCommand.sh",
+  // Mark this as the GUI configuration so `postCreateCommand.sh` can install
+  // GUI-only packages (like a web browser) without bloating the default config.
+  "postCreateCommand": "MOB_SANDBOX_GUI=1 .devcontainer/postCreateCommand.sh",
   "remoteEnv": {
     // Ensure tools installed into ~/.local/bin are available in terminals.
     "PATH": "${containerEnv:PATH}:${containerEnv:HOME}/.local/bin"
