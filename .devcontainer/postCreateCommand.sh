@@ -61,11 +61,6 @@ fi
 # experimenting. If this grows, consider moving OS package installs into a
 # `.devcontainer/Dockerfile` so Codespaces prebuilds can cache them.
 install_os_packages() {
-  if have_cmd nvim; then
-    log "neovim already installed."
-    return 0
-  fi
-
   if ! have_cmd sudo; then
     log "sudo not found; skipping OS package installs."
     return 0
@@ -73,6 +68,31 @@ install_os_packages() {
 
   if ! have_cmd apt-get; then
     log "apt-get not found; skipping OS package installs."
+    return 0
+  fi
+
+  local pkgs=()
+  if ! have_cmd nvim; then
+    pkgs+=("neovim")
+  fi
+  if ! have_cmd sshd; then
+    pkgs+=("openssh-server")
+  fi
+  if ! have_cmd rg; then
+    pkgs+=("ripgrep")
+  fi
+  if ! have_cmd ss; then
+    pkgs+=("iproute2")
+  fi
+  if ! have_cmd go; then
+    pkgs+=("golang-go")
+  fi
+  if ! have_cmd node || ! have_cmd npm; then
+    pkgs+=("nodejs" "npm")
+  fi
+
+  if [[ ${#pkgs[@]} -eq 0 ]]; then
+    log "OS packages already installed."
     return 0
   fi
 
@@ -103,7 +123,7 @@ install_os_packages() {
     done <<<"${matches}"
   }
 
-  log "Installing neovim via apt-get..."
+  log "Installing OS packages via apt-get: ${pkgs[*]}"
   sudo DEBIAN_FRONTEND=noninteractive apt-get update
   local rc=$?
   if [[ $rc -ne 0 ]]; then
@@ -114,16 +134,19 @@ install_os_packages() {
     rc=$?
   fi
   if [[ $rc -eq 0 ]]; then
-    sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends neovim
+    sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends "${pkgs[@]}"
     rc=$?
   fi
 
   if [[ $rc -ne 0 ]]; then
-    log "neovim install failed (rc=${rc}); continuing."
+    log "OS package install failed (rc=${rc}); continuing."
     return 0
   fi
 
-  log "neovim installed."
+  sudo apt-get clean || true
+  sudo rm -rf /var/lib/apt/lists/* || true
+
+  log "OS packages installed."
 }
 
 install_os_packages

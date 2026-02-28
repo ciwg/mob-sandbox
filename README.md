@@ -36,6 +36,10 @@ How to use it:
 To change the desktop password, edit `.devcontainer/gui/devcontainer.json` and
 rebuild the container.
 
+Note: `gh codespace logs` and `gh codespace ssh` rely on an SSH server in the
+container. The GUI devcontainer config includes the `sshd` feature to support
+that workflow.
+
 Testing footnotes [^foo] [^bar] [^1]. 
 
 And more [^foo].
