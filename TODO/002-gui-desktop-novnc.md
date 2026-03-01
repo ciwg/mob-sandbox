@@ -43,6 +43,7 @@ Implementation plan:
     - retry with a larger machine size and/or a smaller base image
     - run `gh codespace rebuild --full`
   - [x] 002.3.4 Install a GUI browser (so the desktop can browse the web).
+  - [x] 002.3.5 Ensure the browser can run in Codespaces (work around WebKit sandbox constraints).
 - [ ] 002.4 If the feature approach isn't viable, pick a minimal
   desktop stack (start with a window manager + terminal, then add a
   fuller DE only if needed).

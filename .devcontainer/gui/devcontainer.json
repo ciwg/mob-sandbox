@@ -11,6 +11,13 @@
   // Mark this as the GUI configuration so `postCreateCommand.sh` can install
   // GUI-only packages (like a web browser) without bloating the default config.
   "postCreateCommand": "MOB_SANDBOX_GUI=1 .devcontainer/postCreateCommand.sh",
+  "containerEnv": {
+    // Codespaces containers commonly disallow unprivileged user namespaces.
+    // WebKitGTK uses `bubblewrap` for its sandbox, which fails without them.
+    //
+    // This disables the WebKit sandbox so Epiphany (GNOME Web) can run.
+    "WEBKIT_DISABLE_SANDBOX_THIS_IS_DANGEROUS": "1"
+  },
   "remoteEnv": {
     // Ensure tools installed into ~/.local/bin are available in terminals.
     "PATH": "${containerEnv:PATH}:${containerEnv:HOME}/.local/bin"

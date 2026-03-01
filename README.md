@@ -34,6 +34,9 @@ How to use it:
   and use password `vscode`.
 - A GUI browser (`epiphany`, a.k.a. GNOME Web) is installed; launch it from the
   desktop or run `epiphany` in a terminal inside the noVNC session.
+- Note: in Codespaces, Epiphany's WebKit sandbox often can't start due to
+  restrictions on unprivileged user namespaces. The GUI devcontainer config sets
+  `WEBKIT_DISABLE_SANDBOX_THIS_IS_DANGEROUS=1` so the browser can run.
 
 To change the desktop password, edit `.devcontainer/gui/devcontainer.json` and
 rebuild the container.
