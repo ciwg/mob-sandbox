@@ -44,6 +44,7 @@ Implementation plan:
     - run `gh codespace rebuild --full`
   - [x] 002.3.4 Install a GUI browser (so the desktop can browse the web).
   - [x] 002.3.5 Ensure the browser can run in Codespaces (work around WebKit sandbox constraints).
+  - [x] 002.3.6 Add an in-desktop reminder to use the noVNC clipboard for copy/paste.
 - [ ] 002.4 If the feature approach isn't viable, pick a minimal
   desktop stack (start with a window manager + terminal, then add a
   fuller DE only if needed).
@@ -81,8 +82,8 @@ Implementation plan:
   - confirm secrets/passwords are not written to repo files or shell
     history
 - [ ] 002.11 Basic validation:
-  - open the noVNC URL and verify the desktop appears
-  - launch a browser inside the desktop and load a page
-  - verify clipboard + keyboard mappings are usable
-  - run a trivial GUI app (terminal, file manager) to confirm
-    stability
+  - [ ] 002.11.1 Open the noVNC URL and verify the desktop appears.
+  - [ ] 002.11.2 Confirm the noVNC clipboard reminder appears in the desktop.
+  - [ ] 002.11.3 Launch a browser inside the desktop and load a page.
+  - [ ] 002.11.4 Verify clipboard + keyboard mappings are usable.
+  - [ ] 002.11.5 Run a trivial GUI app (terminal, file manager) to confirm stability.

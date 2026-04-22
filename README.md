@@ -32,6 +32,9 @@ How to use it:
   prompted (VS Code / Codespaces command palette: “Rebuild Container”).
 - Once the container is running, open forwarded port `6080` (“Desktop (noVNC)”)
   and use password `vscode`.
+- Copy/paste: use the **noVNC clipboard** (sidebar clipboard icon) to move text
+  between your computer and the in-container desktop. A reminder should pop up
+  inside the desktop when the session starts.
 - A GUI browser (`epiphany`, a.k.a. GNOME Web) is installed; launch it from the
   desktop or run `epiphany` in a terminal inside the noVNC session.
 - Note: in Codespaces, Epiphany's WebKit sandbox often can't start due to

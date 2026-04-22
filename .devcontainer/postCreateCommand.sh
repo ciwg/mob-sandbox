@@ -91,6 +91,13 @@ install_os_packages() {
     pkgs+=("nodejs" "npm")
   fi
   if [[ "${MOB_SANDBOX_GUI:-}" == "1" ]]; then
+    if ! have_cmd notify-send; then
+      pkgs+=("libnotify-bin")
+    fi
+    if ! have_cmd xmessage; then
+      pkgs+=("x11-utils")
+    fi
+
     # Ubuntu's Firefox/Chromium packages frequently depend on Snap, which is
     # awkward in containers. Epiphany (GNOME Web) is a simple apt-installed
     # GUI browser that works well in noVNC desktops.
@@ -158,6 +165,76 @@ install_os_packages() {
 }
 
 install_os_packages
+
+# Show a one-time reminder inside the noVNC desktop session about copy/paste.
+#
+# In noVNC, the browser "local" clipboard and the in-container "remote" clipboard
+# are separate. Users frequently get stuck trying to paste directly into the
+# remote desktop. This autostarts a small reminder on GUI Codespaces.
+install_novnc_clipboard_reminder() {
+  if [[ "${MOB_SANDBOX_GUI:-}" != "1" ]]; then
+    return 0
+  fi
+
+  local local_bin="${HOME}/.local/bin"
+  if ! ensure_dir "${local_bin}" "for reminder script"; then
+    return 0
+  fi
+
+  local reminder_script="${local_bin}/mob-novnc-clipboard-reminder"
+  cat >"${reminder_script}" <<'EOF'
+#!/usr/bin/env bash
+set -uo pipefail
+
+title="noVNC clipboard"
+body="Copy/paste between your computer and this desktop using the noVNC clipboard (sidebar clipboard icon)."
+
+# This is expected to run inside the desktop session (XDG autostart).
+if [[ -z "${DISPLAY:-}" ]]; then
+  exit 0
+fi
+
+# Give the desktop/DBus a moment to come up.
+sleep "${MOB_NOVNC_REMINDER_DELAY_SEC:-5}"
+
+if command -v notify-send >/dev/null 2>&1; then
+  for _ in 1 2 3; do
+    notify-send -a "mob-sandbox" -u normal -t 12000 "${title}" "${body}" && exit 0
+    sleep 1
+  done
+fi
+
+# Fallback: a simple X11 dialog if notifications aren't available.
+if command -v xmessage >/dev/null 2>&1; then
+  xmessage -center $'noVNC clipboard\n\nCopy/paste between your computer and this desktop using the noVNC clipboard (sidebar clipboard icon).' || true
+fi
+
+exit 0
+EOF
+  chmod 0755 "${reminder_script}" || true
+
+  local autostart_dir="${HOME}/.config/autostart"
+  if ! ensure_dir "${autostart_dir}" "for desktop autostart"; then
+    return 0
+  fi
+
+  local autostart_file="${autostart_dir}/mob-novnc-clipboard-reminder.desktop"
+  cat >"${autostart_file}" <<EOF
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=noVNC clipboard reminder
+Comment=Reminds you to use the noVNC clipboard for copy/paste
+Exec=${reminder_script}
+Terminal=false
+StartupNotify=false
+X-GNOME-Autostart-enabled=true
+EOF
+
+  log "Installed noVNC clipboard reminder autostart."
+}
+
+install_novnc_clipboard_reminder
 
 # Install common CLI tools used in mob programming exercises.
 #
