@@ -1,5 +1,6 @@
 {
   "name": "mob-sandbox",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu-24.04",
     "containerEnv": {
       "DECOMK_HOME": "/var/decomk",
       "DECOMK_LOG_DIR": "/var/log/decomk",
