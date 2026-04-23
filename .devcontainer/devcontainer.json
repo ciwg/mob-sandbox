@@ -1,20 +1,12 @@
 {
-  // Dev container config for GitHub Codespaces / VS Code Dev Containers.
-  //
-  // This repo is intentionally a sandbox, so we keep the container setup
-  // lightweight and general-purpose. Extend `postCreateCommand.sh` as new
-  // exercises/tools get added.
   "name": "mob-sandbox",
-  "image": "mcr.microsoft.com/devcontainers/universal:2",
-  "postCreateCommand": ".devcontainer/postCreateCommand.sh",
-  "remoteEnv": {
-    // Ensure tools installed into ~/.local/bin are available in terminals.
-    "PATH": "${containerEnv:PATH}:${containerEnv:HOME}/.local/bin"
-  },
-  "secrets": {
-    "OPENAI_API_KEY": {
-      "description": "Personal OpenAI API key used by local experiments and tooling.",
-      "documentationUrl": "https://platform.openai.com/api-keys"
-    }
-  }
+    "containerEnv": {
+      "DECOMK_HOME": "/var/decomk",
+      "DECOMK_LOG_DIR": "/var/log/decomk",
+      "DECOMK_TOOL_URI": "go:github.com/stevegt/decomk/cmd/decomk@latest",
+      "DECOMK_CONF_URI": "git:git@github.com:ciwg/decomk-conf-cswg.git",
+      "DECOMK_FAIL_NOBOOT": "false"
+    },
+  "updateContentCommand": "bash .devcontainer/decomk-stage0.sh updateContent",
+  "postCreateCommand": "bash .devcontainer/decomk-stage0.sh postCreate"
 }
