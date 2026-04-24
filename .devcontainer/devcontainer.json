@@ -4,18 +4,6 @@
   // Provisioning is delegated to decomk via `.devcontainer/decomk-stage0.sh`.
   "name": "mob-sandbox",
   "image": "mcr.microsoft.com/devcontainers/base:ubuntu-24.04",
-  "features": {
-    // Stage-0 installs decomk via `go install`, so Go must exist before
-    // `updateContentCommand`/`postCreateCommand` run.  XXX This is temporary and needs to be taken care of in the base image Dockerfile in decomk-conf-cswg repo
-    // "ghcr.io/devcontainers/features/go:1": {
-      // "version": "latest"
-    // },
-    // Required for `gh codespace ssh` and `gh codespace logs`.
-    // XXX move to the base image Dockerfile in decomk-conf-cswg repo
-    "ghcr.io/devcontainers/features/sshd:1": {
-      "version": "latest"
-    }
-  },
   "containerEnv": {
     "DECOMK_HOME": "/var/decomk",
     "DECOMK_LOG_DIR": "/var/log/decomk",
@@ -23,7 +11,6 @@
     "DECOMK_CONF_URI": "git:git@github.com:ciwg/decomk-conf-cswg.git",
     "DECOMK_FAIL_NOBOOT": "false"
   },
-  // "updateContentCommand": "bash .devcontainer/decomk-stage0.sh updateContent",
-  // "postCreateCommand": "bash .devcontainer/decomk-stage0.sh postCreate",
-  // "remoteUser": "root"
+  "updateContentCommand": "bash .devcontainer/decomk-stage0.sh updateContent",
+  "postCreateCommand": "bash .devcontainer/decomk-stage0.sh postCreate",
 }
