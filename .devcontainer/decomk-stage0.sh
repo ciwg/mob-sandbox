@@ -34,10 +34,12 @@ DECOMK_HOME="${DECOMK_HOME:-/var/decomk}"
 DECOMK_LOG_DIR="${DECOMK_LOG_DIR:-/var/log/decomk}"
 DECOMK_TOOL_URI="${DECOMK_TOOL_URI:-go:github.com/stevegt/decomk/cmd/decomk@latest}"
 DECOMK_CONF_URI="${DECOMK_CONF_URI:-}"
+DECOMK_REMOTE_USER="${DECOMK_REMOTE_USER:-}"
+DECOMK_REMOTE_UID="${DECOMK_REMOTE_UID:-}"
 DECOMK_FAIL_NOBOOT="${DECOMK_FAIL_NOBOOT:-false}"
 DECOMK_STAGE0_PHASE="$stage0_phase"
 
-export DECOMK_HOME DECOMK_LOG_DIR DECOMK_TOOL_URI DECOMK_CONF_URI DECOMK_FAIL_NOBOOT
+export DECOMK_HOME DECOMK_LOG_DIR DECOMK_TOOL_URI DECOMK_CONF_URI DECOMK_REMOTE_USER DECOMK_REMOTE_UID DECOMK_FAIL_NOBOOT
 export DECOMK_STAGE0_PHASE
 
 stage0_runtime_log=""
@@ -49,6 +51,7 @@ stage0_failure_marker="$stage0_failure_dir/latest-${stage0_phase}.marker"
 stage0_failure_log="$stage0_failure_dir/latest-${stage0_phase}.log"
 stage0_motd_hint="/etc/motd.d/80-decomk-stage0"
 stage0_motd_fallback="$stage0_failure_dir/motd.txt"
+stage0_go_cmd="go"
 
 timestamp_utc() {
   date -u +"%Y-%m-%dT%H:%M:%SZ"
@@ -132,6 +135,8 @@ decomk_home=$DECOMK_HOME
 decomk_log_dir=$DECOMK_LOG_DIR
 decomk_tool_uri=$DECOMK_TOOL_URI
 decomk_conf_uri=$DECOMK_CONF_URI
+decomk_remote_user=$DECOMK_REMOTE_USER
+decomk_remote_uid=$DECOMK_REMOTE_UID
 runtime_log=$stage0_runtime_log
 EOF
 )"
@@ -210,6 +215,53 @@ clear_stage0_failure_artifacts() {
   fi
 }
 
+require_root_stage0() {
+  if [[ "$(id -u)" -eq 0 ]]; then
+    return 0
+  fi
+  if [[ "${DECOMK_STAGE0_ESCALATED:-}" == "1" ]]; then
+    die "stage-0 root escalation failed: already retried with sudo -n -E"
+  fi
+  if ! command -v sudo >/dev/null 2>&1; then
+    die "stage-0 requires root but sudo is not in PATH"
+  fi
+
+  # Intent: Centralize privilege escalation at stage-0 startup so decomk itself
+  # does not need to carry sudo fallback logic for make execution.
+  # Source: DI-001-20260424-200248 (TODO/001)
+  export DECOMK_STAGE0_ESCALATED=1
+  exec sudo -n -E -- bash "$0" "$stage0_phase" "$@"
+}
+
+validate_remote_identity_before_escalation() {
+  # Intent: Enforce that stage-0 begins as the configured remote user/UID before
+  # self-escalating to root, so identity drift fails immediately instead of
+  # causing confusing downstream ownership/permission behavior.
+  # Source: DI-001-20260424-215415 (TODO/001)
+  if [[ "${DECOMK_STAGE0_ESCALATED:-}" == "1" ]]; then
+    return 0
+  fi
+  if [[ -z "$DECOMK_REMOTE_USER" ]]; then
+    die "DECOMK_REMOTE_USER is empty; expected non-root remote identity before stage-0 escalation"
+  fi
+  if [[ -z "$DECOMK_REMOTE_UID" ]]; then
+    die "DECOMK_REMOTE_UID is empty; expected non-root remote identity before stage-0 escalation"
+  fi
+  if [[ "$DECOMK_REMOTE_UID" =~ [^0-9] ]]; then
+    die "DECOMK_REMOTE_UID must be numeric (got: $DECOMK_REMOTE_UID)"
+  fi
+
+  local current_user current_uid
+  current_user="$(id -un)"
+  current_uid="$(id -u)"
+  if [[ "$current_user" != "$DECOMK_REMOTE_USER" ]]; then
+    die "stage-0 identity mismatch: current user is $current_user but DECOMK_REMOTE_USER=$DECOMK_REMOTE_USER"
+  fi
+  if [[ "$current_uid" != "$DECOMK_REMOTE_UID" ]]; then
+    die "stage-0 identity mismatch: current uid is $current_uid but DECOMK_REMOTE_UID=$DECOMK_REMOTE_UID"
+  fi
+}
+
 stage0_error_handler() {
   local rc="$1"
   local line="$2"
@@ -226,6 +278,15 @@ stage0_error_handler() {
   # to choose non-blocking continuation vs hard startup failure.
   # Source: DI-012-20260423-045339 (TODO/012)
   write_stage0_failure_artifacts "$rc" "$line"
+
+  # Intent: Identity mismatches must fail startup even when DECOMK_FAIL_NOBOOT is
+  # false, because continuing after a remote-user/UID contract violation would let
+  # stage-0 proceed under the wrong ownership assumptions.
+  # Source: DI-001-20260424-215415 (TODO/001)
+  if [[ "$stage0_error_step" == "validate-remote-identity" ]]; then
+    echo "decomk bootstrap: remote identity validation failed; exiting non-zero (rc=$rc)" >&2
+    exit "$rc"
+  fi
 
   if [[ "$stage0_fail_no_boot" == "true" ]]; then
     echo "decomk bootstrap: DECOMK_FAIL_NOBOOT=true; exiting non-zero (rc=$rc)" >&2
@@ -365,7 +426,7 @@ sync_git_repo() {
 
 resolve_go_bin_dir() {
   local gobin
-  gobin="$(go env GOBIN)"
+  gobin="$("$stage0_go_cmd" env GOBIN)"
   if [[ -n "$gobin" ]]; then
     printf '%s' "$gobin"
     return 0
@@ -373,12 +434,32 @@ resolve_go_bin_dir() {
 
   local gopath
   local gopath_first
-  gopath="$(go env GOPATH)"
+  gopath="$("$stage0_go_cmd" env GOPATH)"
   gopath_first="${gopath%%:*}"
   if [[ -z "$gopath_first" ]]; then
     return 1
   fi
   printf '%s/bin' "$gopath_first"
+}
+
+resolve_go_command() {
+  if command -v go >/dev/null 2>&1; then
+    command -v go
+    return 0
+  fi
+
+  # Intent: Keep stage-0 bootstrap deterministic under sudo policies that
+  # rewrite PATH (for example secure_path) by probing common absolute Go paths
+  # before failing with an actionable message.
+  # Source: DI-001-20260424-211213 (TODO/001)
+  local candidate
+  for candidate in /usr/bin/go /usr/local/go/bin/go; do
+    if [[ -x "$candidate" ]]; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
+  die "go command not found after root escalation (PATH=$PATH); install golang or ensure sudo secure_path includes go"
 }
 
 install_decomk() {
@@ -388,7 +469,7 @@ install_decomk() {
       if [[ -z "$install_spec" ]]; then
         die "go source URI must include module@version after go:"
       fi
-      go install "$install_spec"
+      "$stage0_go_cmd" install "$install_spec"
       ;;
     git:*)
       local parsed tool_repo_url tool_git_ref
@@ -397,7 +478,7 @@ install_decomk() {
       tool_git_ref="${parsed[1]:-}"
       local tool_src_dir="$DECOMK_HOME/src/decomk"
       sync_git_repo "$tool_repo_url" "$tool_src_dir" "$tool_git_ref"
-      (cd "$tool_src_dir" && go install ./cmd/decomk)
+      (cd "$tool_src_dir" && "$stage0_go_cmd" install ./cmd/decomk)
       ;;
     *)
       die "invalid DECOMK_TOOL_URI=$DECOMK_TOOL_URI (expected go:... or git:...)"
@@ -440,6 +521,15 @@ resolve_decomk_binary() {
 
 stage0_fail_no_boot="$(normalize_fail_no_boot "$DECOMK_FAIL_NOBOOT")"
 trap 'stage0_error_handler "$?" "$LINENO"' ERR
+
+stage0_error_step="validate-remote-identity"
+validate_remote_identity_before_escalation
+
+stage0_error_step="require-root"
+require_root_stage0 "$@"
+
+stage0_error_step="resolve-go-command"
+stage0_go_cmd="$(resolve_go_command)"
 
 stage0_error_step="prepare-paths"
 mkdir -p "$DECOMK_HOME" "$DECOMK_LOG_DIR"
