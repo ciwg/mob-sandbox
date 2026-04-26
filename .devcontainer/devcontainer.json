@@ -1,19 +1,19 @@
 {
   "name": "mob-sandbox",
   "image": "ghcr.io/ciwg/decomk-conf-cswg:testing",
-  "features": {
-    "ghcr.io/devcontainers/features/go:1": {
-      "version": "latest"
-    },
-    "ghcr.io/devcontainers/features/sshd:1": {
-      "version": "latest"
-    }
-  },
+//  "features": {
+//    "ghcr.io/devcontainers/features/go:1": {
+//      "version": "latest"
+//    },
+//    "ghcr.io/devcontainers/features/sshd:1": {
+//      "version": "latest"
+//    }
+//  },
   "containerEnv": {
     "DECOMK_HOME": "/var/decomk",
     "DECOMK_LOG_DIR": "/var/log/decomk",
     "DECOMK_TOOL_URI": "go:github.com/stevegt/decomk/cmd/decomk@latest",
-    "DECOMK_CONF_URI": "git:git@github.com:ciwg/decomk-conf-cswg.git",
+    "DECOMK_CONF_URI": "git:https://github.com/ciwg/decomk-conf-cswg.git?ref=main",
     "DECOMK_FAIL_NOBOOT": "false"
   },
   "updateRemoteUserUID": false,
