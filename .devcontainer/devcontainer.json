@@ -1,4 +1,4 @@
 {
   "name": "mob-sandbox",
-  "image": "ghcr.io/ciwg/decomk-conf-cswg:testing"
+  "image": "ghcr.io/ciwg/decomk-conf-cswg:main"
 }
