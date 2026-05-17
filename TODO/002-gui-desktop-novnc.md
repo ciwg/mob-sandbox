@@ -1,5 +1,16 @@
 # 002 - Add GUI desktop + noVNC to Codespace
 
+## Decision Intent Log
+
+ID: DI-002-20260517-210209
+Date: 2026-05-17 21:02:09 UTC
+Status: active
+Decision: Extend `scripts/pull-test.sh` so a successful pull test requires the GUI daemons to remain supervised and the noVNC desktop path to be reachable inside the Codespace.
+Intent: Prevent green Codespaces build logs from hiding GUI services that briefly start, immediately exit, or leave noVNC unable to connect to the VNC desktop.
+Constraints: Keep the test in the existing pull-test script; use `gh codespace ssh` for in-container assertions; fail loudly instead of silently accepting transient runit status; keep logs written to `/tmp/cs-pull-test-mob-sandbox.log`.
+Affects: `scripts/pull-test.sh`, `TODO/002-gui-desktop-novnc.md`
+
+
 Goal: run a lightweight Linux desktop environment inside the Codespace and access it
 from a browser via noVNC (VNC over WebSockets), primarily for GUI-only tools.
 
@@ -87,3 +98,4 @@ Implementation plan:
   - [ ] 002.11.3 Launch a browser inside the desktop and load a page.
   - [ ] 002.11.4 Verify clipboard + keyboard mappings are usable.
   - [ ] 002.11.5 Run a trivial GUI app (terminal, file manager) to confirm stability.
+  - [x] 002.11.6 Automate pull-test validation that runit keeps `xvfb`, `openbox`, `x11vnc`, and `novnc` running and that noVNC reaches the VNC desktop.
