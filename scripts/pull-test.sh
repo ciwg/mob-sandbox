@@ -353,14 +353,33 @@ run_and_log_gui_health_check() {
     return "$rc"
 }
 
-gh codespace create \
-    --repo "$repo" \
-    --branch "$branch" \
-    --display-name "$display_name" \
-    --default-permissions \
-    --machine "$machine" \
-    --devcontainer-path "$devcontainer_path"
+create_codespace() {
+    local rc=0
 
+    append_log_section "gh codespace create for $display_name"
+    set +e
+    gh codespace create \
+        --repo "$repo" \
+        --branch "$branch" \
+        --display-name "$display_name" \
+        --default-permissions \
+        --machine "$machine" \
+        --devcontainer-path "$devcontainer_path" 2>&1 | tee -a "$log_file"
+    rc=${PIPESTATUS[0]}
+    set -e
+
+    if ((rc == 0)); then
+        return 0
+    fi
+
+    # Intent: `gh codespace create` can create the Codespace and then fail while
+    # fetching it by generated name; keep going so our display-name lookup can
+    # determine whether creation really happened. Source: DI-002-20260518-052215
+    append_log_line "WARN: gh codespace create exited with rc=$rc; continuing with list/poll discovery"
+    return 0
+}
+
+create_codespace
 name=$(wait_for_codespace_name)
 wait_for_codespace_start "$name"
 fetch_codespace_logs

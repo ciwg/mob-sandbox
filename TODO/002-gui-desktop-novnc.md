@@ -2,6 +2,14 @@
 
 ## Decision Intent Log
 
+ID: DI-002-20260518-052215
+Date: 2026-05-18 05:22:15 UTC
+Status: active
+Decision: Treat `gh codespace create` API lookup timeouts as non-fatal and continue with the script-owned `gh codespace list` discovery/poll path.
+Intent: GitHub CLI can create the Codespace and then fail while fetching it by generated name; the pull test should not exit before checking whether the Codespace appeared and can be polled normally.
+Constraints: Keep real creation failures visible in `/tmp/cs-pull-test-mob-sandbox.log`; preserve the existing display-name lookup timeout as the final authority; do not hide later build or GUI-health failures.
+Affects: `scripts/pull-test.sh`, `TODO/002-gui-desktop-novnc.md`
+
 ID: DI-002-20260518-050312
 Date: 2026-05-18 05:03:12 UTC
 Status: active
@@ -108,3 +116,4 @@ Implementation plan:
   - [ ] 002.11.5 Run a trivial GUI app (terminal, file manager) to confirm stability.
   - [x] 002.11.6 Automate pull-test validation that runit keeps `xvfb`, `openbox`, `x11vnc`, and `novnc` running and that noVNC reaches the VNC desktop.
   - [x] 002.11.7 Include GUI health-check pass/fail output in `/tmp/cs-pull-test-mob-sandbox.log`.
+  - [x] 002.11.8 Continue after `gh codespace create` post-create lookup timeouts and rely on script-owned list/poll discovery.
