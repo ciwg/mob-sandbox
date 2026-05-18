@@ -34,16 +34,29 @@ validate_seconds CODESPACE_LOOKUP_TIMEOUT_SECONDS "$lookup_timeout_seconds"
 validate_seconds GUI_HEALTH_READY_TIMEOUT_SECONDS "$gui_health_ready_timeout_seconds"
 validate_seconds GUI_HEALTH_STABLE_SECONDS "$gui_health_stable_seconds"
 
+: > "$log_file"
+
+# Intent: Keep the pull-test log as a complete artifact that includes both
+# Codespaces build logs and GUI health output. Source: DI-002-20260518-050312
+append_log_line() {
+    printf '%s\n' "$*" | tee -a "$log_file" >&2
+}
+
+append_log_section() {
+    printf '\n===== %s %s =====\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*" | tee -a "$log_file" >&2
+}
+
 fetch_codespace_logs() {
     if [[ -z "$name" ]]; then
         return 0
     fi
 
-    if gh codespace logs -c "$name" > "$log_file"; then
-        printf 'wrote codespace logs to %s\n' "$log_file" >&2
+    append_log_section "gh codespace logs for $name"
+    if gh codespace logs -c "$name" 2>&1 | tee -a "$log_file"; then
+        append_log_line "wrote codespace logs to $log_file"
     else
         local rc=$?
-        printf 'WARN: failed to write codespace logs to %s (rc=%s)\n' "$log_file" "$rc" >&2
+        append_log_line "WARN: failed to write codespace logs to $log_file (rc=$rc)"
     fi
 }
 
@@ -323,6 +336,23 @@ require_novnc_websocket_to_vnc
 REMOTE_GUI_HEALTH
 }
 
+run_and_log_gui_health_check() {
+    # Intent: Preserve GUI health diagnostics in the same log file even when the
+    # health check fails and the shell exits early. Source: DI-002-20260518-050312
+    local codespace_name=$1
+    local rc=0
+
+    append_log_section "GUI health check for $codespace_name"
+    if run_gui_health_check "$codespace_name" 2>&1 | tee -a "$log_file"; then
+        append_log_line "GUI health check succeeded for $codespace_name"
+        return 0
+    fi
+
+    rc=$?
+    append_log_line "GUI health check failed for $codespace_name (rc=$rc)"
+    return "$rc"
+}
+
 gh codespace create \
     --repo "$repo" \
     --branch "$branch" \
@@ -334,6 +364,6 @@ gh codespace create \
 name=$(wait_for_codespace_name)
 wait_for_codespace_start "$name"
 fetch_codespace_logs
-run_gui_health_check "$name"
+run_and_log_gui_health_check "$name"
 fetch_codespace_logs
 echo "$log_file"

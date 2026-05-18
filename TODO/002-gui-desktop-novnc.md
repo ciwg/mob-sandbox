@@ -2,6 +2,14 @@
 
 ## Decision Intent Log
 
+ID: DI-002-20260518-050312
+Date: 2026-05-18 05:03:12 UTC
+Status: active
+Decision: Append both `gh codespace logs` output and GUI health-check output to the pull-test log file.
+Intent: Make `/tmp/cs-pull-test-mob-sandbox.log` a complete handoff artifact that includes devcontainer build logs and the post-build GUI service/noVNC assertions that explain pass or fail.
+Constraints: Preserve the existing log path default; keep terminal output visible while teeing to the log; avoid hiding the original health-check exit code.
+Affects: `scripts/pull-test.sh`, `TODO/002-gui-desktop-novnc.md`
+
 ID: DI-002-20260517-210209
 Date: 2026-05-17 21:02:09 UTC
 Status: active
@@ -99,3 +107,4 @@ Implementation plan:
   - [ ] 002.11.4 Verify clipboard + keyboard mappings are usable.
   - [ ] 002.11.5 Run a trivial GUI app (terminal, file manager) to confirm stability.
   - [x] 002.11.6 Automate pull-test validation that runit keeps `xvfb`, `openbox`, `x11vnc`, and `novnc` running and that noVNC reaches the VNC desktop.
+  - [x] 002.11.7 Include GUI health-check pass/fail output in `/tmp/cs-pull-test-mob-sandbox.log`.
